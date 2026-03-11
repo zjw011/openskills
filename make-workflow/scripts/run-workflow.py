@@ -55,13 +55,14 @@ def parse_make_url(url):
     
     return None
 
-def run_workflow(workflow_name, config=None):
+def run_workflow(workflow_name, api_key=None, config=None):
     """
     执行指定的工作流
     
     参数:
     - workflow_name: 工作流名称（config.json 中的键）
     - config: 配置数据（如果为 None 则从文件加载）
+    - api_key: API Key（如果为 None 则从环境变量 MAKE_API_KEY 获取）
     
     返回:
     - API 响应数据或错误信息
@@ -71,7 +72,10 @@ def run_workflow(workflow_name, config=None):
         if config is None:
             return {"error": "无法加载配置文件"}
     
-    api_key = config.get("api_key")
+    # 优先从参数获取 API key，否则从环境变量获取
+    if not api_key:
+        api_key = os.environ.get("MAKE_API_KEY")
+    
     workflows = config.get("workflows", {})
     
     if not api_key:
@@ -148,27 +152,48 @@ def main():
     """
     命令行接口
     """
-    if len(sys.argv) < 2:
+    # 检查是否有 api_key 参数
+    api_key = None
+    workflow_name = None
+    
+    # 从环境变量获取 API key
+    api_key = os.environ.get("MAKE_API_KEY")
+    
+    # 解析命令行参数
+    args = sys.argv[1:]
+    
+    # 检查是否有 --api-key 参数
+    if "--api-key" in args:
+        idx = args.index("--api-key")
+        if idx + 1 < len(args):
+            api_key = args[idx + 1]
+            args = args[:idx] + args[idx + 2:]
+    
+    if len(args) < 1:
         print("用法:")
         print("  python run-workflow.py <工作流名称>")
         print("  python run-workflow.py add <名称> <URL>")
+        print("  python run-workflow.py <工作流名称> --api-key <YOUR_API_KEY>")
+        print("")
+        print("环境变量:")
+        print("  设置环境变量 MAKE_API_KEY 即可自动使用")
         return
     
-    command = sys.argv[1]
+    command = args[0]
     
     if command == "add":
-        if len(sys.argv) != 4:
+        if len(args) != 3:
             print("用法: python run-workflow.py add <工作流名称> <URL>")
             return
         
-        workflow_name = sys.argv[2]
-        url = sys.argv[3]
+        workflow_name = args[1]
+        url = args[2]
         result = add_workflow(workflow_name, url)
         print(json.dumps(result, indent=2, ensure_ascii=False))
     
     else:
         workflow_name = command
-        result = run_workflow(workflow_name)
+        result = run_workflow(workflow_name, api_key=api_key)
         print(json.dumps(result, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":

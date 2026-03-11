@@ -18,14 +18,14 @@ description: Make.com 工作流自动化执行技能。用于管理和运行 Mak
 ### 1. 配置工作流映射
 
 技能配置文件存储在 `config.json` 中，位于技能目录。配置包含：
-- `api_key`: Make.com API Key
 - `workflows`: 工作流映射（名称 → URL 或 scenario_id）
 
-默认配置包含示例工作流"播客记录"：
+**注意**：API Key 不存储在 skill 配置中，需要通过 OpenClaw 配置文件管理。
+
+默认配置示例：
 
 ```json
 {
-  "api_key": "6350b215-2989-4050-b393-5f0e5d9c5d82",
   "workflows": {
     "播客记录": "https://us2.make.com/1801109/scenarios/3983030/edit"
   }
