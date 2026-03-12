@@ -55,11 +55,15 @@ def validate_make_url(url):
         match = re.match(pattern, url)
         if match:
             zone = match.group(1)
-            # 尝试获取 scenario_id
-            if pattern.count('(\d+)') == 2:
+            if match.lastindex == 3:
+                scenario_id = match.group(3)
+            elif match.lastindex == 2:
                 scenario_id = match.group(2)
             else:
-                scenario_id = match.group(3)
+                return {
+                    "valid": False,
+                    "error": "无法解析 URL"
+                }
             
             return {
                 "zone": zone,

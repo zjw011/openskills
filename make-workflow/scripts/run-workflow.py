@@ -42,11 +42,23 @@ def parse_make_url(url):
         match = re.match(pattern, url)
         if match:
             zone = match.group(1)
-            # 尝试获取 scenario_id
-            if pattern.count('(\d+)') == 2:
-                scenario_id = match.group(2)
+            # 正确获取 scenario_id：应该是最后一个数字组
+            # 对于第一个模式 r'https://([^/]+)/(\d+)/scenarios/(\d+)/edit'
+            # 有两个数字组：(\d+) -> match.group(2) 是组织ID，match.group(3) 是场景ID
+            # 对于第二个模式 r'https://([^/]+)/(\d+)/scenarios/(\d+)'
+            # 有两个数字组：(\d+) -> match.group(2) 是组织ID，match.group(3) 是场景ID
+            # 对于第三个模式 r'https://([^/]+)/scenarios/(\d+)/edit'
+            # 有一个数字组：(\d+) -> match.group(2) 是场景ID
+            # 对于第四个模式 r'https://([^/]+)/scenarios/(\d+)'
+            # 有一个数字组：(\d+) -> match.group(2) 是场景ID
+            
+            # 我们需要区分是哪种模式：第一个数字组的位置很重要
+            if match.lastindex == 3:
+                scenario_id = match.group(3)  # 有三个组：zone, org_id, scenario_id
+            elif match.lastindex == 2:
+                scenario_id = match.group(2)  # 有两个组：zone, scenario_id
             else:
-                scenario_id = match.group(3)
+                return None
             
             return {
                 "zone": zone,
@@ -62,7 +74,7 @@ def run_workflow(workflow_name, api_key=None, config=None):
     参数:
     - workflow_name: 工作流名称（config.json 中的键）
     - config: 配置数据（如果为 None 则从文件加载）
-    - api_key: API Key（如果为 None 则从环境变量 MAKE_API_KEY 获取）
+    - api_key: API Key（如果为 None 则从 OpenClaw 配置文件读取）
     
     返回:
     - API 响应数据或错误信息
@@ -72,9 +84,20 @@ def run_workflow(workflow_name, api_key=None, config=None):
         if config is None:
             return {"error": "无法加载配置文件"}
     
-    # 优先从参数获取 API key，否则从环境变量获取
+    # 优先从参数获取 API key，否则从 OpenClaw 配置文件读取
     if not api_key:
-        api_key = os.environ.get("MAKE_API_KEY")
+        try:
+            import json
+            from pathlib import Path
+            
+            openclaw_config_path = Path.home() / ".openclaw" / "openclaw.json"
+            if openclaw_config_path.exists():
+                with open(openclaw_config_path, 'r', encoding='utf-8') as f:
+                    openclaw_config = json.load(f)
+                    # external 在 plugins 下面
+                    api_key = openclaw_config.get("plugins", {}).get("external", {}).get("make", {}).get("api_key")
+        except Exception as e:
+            pass
     
     workflows = config.get("workflows", {})
     
@@ -152,31 +175,27 @@ def main():
     """
     命令行接口
     """
-    # 检查是否有 api_key 参数
+    # 从 OpenClaw 配置文件自动读取 API key
     api_key = None
-    workflow_name = None
-    
-    # 从环境变量获取 API key
-    api_key = os.environ.get("MAKE_API_KEY")
+    try:
+        import json
+        from pathlib import Path
+        openclaw_config_path = Path.home() / ".openclaw" / "openclaw.json"
+        if openclaw_config_path.exists():
+            with open(openclaw_config_path, 'r', encoding='utf-8') as f:
+                openclaw_config = json.load(f)
+                # external 在 plugins 下面
+                api_key = openclaw_config.get("plugins", {}).get("external", {}).get("make", {}).get("api_key")
+    except Exception:
+        pass
     
     # 解析命令行参数
     args = sys.argv[1:]
-    
-    # 检查是否有 --api-key 参数
-    if "--api-key" in args:
-        idx = args.index("--api-key")
-        if idx + 1 < len(args):
-            api_key = args[idx + 1]
-            args = args[:idx] + args[idx + 2:]
     
     if len(args) < 1:
         print("用法:")
         print("  python run-workflow.py <工作流名称>")
         print("  python run-workflow.py add <名称> <URL>")
-        print("  python run-workflow.py <工作流名称> --api-key <YOUR_API_KEY>")
-        print("")
-        print("环境变量:")
-        print("  设置环境变量 MAKE_API_KEY 即可自动使用")
         return
     
     command = args[0]
